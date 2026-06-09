@@ -44,8 +44,7 @@ export const mergeEventsWithOverlay = (
       if (
         event.source === "local" &&
         event.isAnytime &&
-        targetDayKey <
-          getDayRange(new Date(event.createdAt ?? event.start)).dayKey
+        targetDayKey < getDayRange(new Date(event.start)).dayKey
       ) {
         return false;
       }

@@ -732,9 +732,7 @@ const collectPlannerDayKeys = (
     const completedDayKey = overlayMap[event.id]?.completedAt
       ? getDayRange(new Date(overlayMap[event.id].completedAt as string)).dayKey
       : undefined;
-    const startDayKey = getDayRange(
-      new Date(event.anytime ? (event.createdAt ?? event.start) : event.start),
-    ).dayKey;
+    const startDayKey = getDayRange(new Date(event.start)).dayKey;
     const endDayKey = event.anytime
       ? (completedDayKey ?? startDayKey)
       : completedDayKey &&
@@ -852,9 +850,7 @@ const isLocalEventVisibleOnDay = (
   dayKey: string,
 ): boolean => {
   if (event.anytime) {
-    return (
-      dayKey >= getDayRange(new Date(event.createdAt ?? event.start)).dayKey
-    );
+    return dayKey >= getDayRange(new Date(event.start)).dayKey;
   }
 
   return (

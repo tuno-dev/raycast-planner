@@ -35,6 +35,7 @@ import {
   ensurePlannerStorageReady,
   getPlannerDatabasePath,
   loadAutoOpenState,
+  loadLocalEvents,
   saveAutoOpenState,
   saveFetchedGoogleEvents,
   saveLocalEvents,
@@ -116,13 +117,10 @@ const Command = () => {
             source: "local",
           } satisfies FetchResult);
       const visibleLocalEvents = plannerState.localEvents.filter((event) => {
-        const createdAtDayKey = getDayRange(
-          new Date(event.createdAt ?? event.start),
-        ).dayKey;
         const startDayKey = getDayRange(new Date(event.start)).dayKey;
         const endDayKey = getDayRange(new Date(event.end)).dayKey;
         return event.anytime
-          ? dayKey >= createdAtDayKey
+          ? dayKey >= startDayKey
           : dayKey >= startDayKey && dayKey <= endDayKey;
       });
       if (canSyncCalendar) {
@@ -227,7 +225,6 @@ const Command = () => {
   const openCreateForm = () =>
     push(
       <LocalEventForm
-        localEvents={plannerState.localEvents}
         mode="create"
         mutate={plannerSql.mutate}
         selectedDate={targetDate}
@@ -383,7 +380,6 @@ const Command = () => {
               event={event}
               key={event.id}
               globalActionSection={globalActionSection}
-              localEvents={plannerState.localEvents}
               mutate={plannerSql.mutate}
               overlayMap={plannerState.overlayMap}
             />
@@ -399,13 +395,11 @@ export default Command;
 const EventListItem = ({
   event,
   globalActionSection,
-  localEvents,
   mutate,
   overlayMap,
 }: {
   event: PlannerEventViewModel;
   globalActionSection: ReactNode;
-  localEvents: LocalPlannerEvent[];
   mutate: PlannerSqlMutate;
   overlayMap: Record<string, PlannerOverlay>;
 }) => {
@@ -431,7 +425,6 @@ const EventListItem = ({
       ? push(
           <LocalEventForm
             event={event}
-            localEvents={localEvents}
             mode="edit"
             mutate={mutate}
             selectedDate={new Date(event.start)}
@@ -468,7 +461,7 @@ const EventListItem = ({
     });
   const deleteEvent = () =>
     void (event.source === "local"
-      ? deleteLocalEvent(mutate, localEvents, event.id)
+      ? deleteLocalEvent(mutate, event.id)
       : updateOverlay(mutate, overlayMap, event.id, { hidden: true }));
 
   return (
@@ -668,13 +661,11 @@ const TextValueForm = ({
 
 const LocalEventForm = ({
   event,
-  localEvents,
   mode,
   mutate,
   selectedDate,
 }: {
   event?: PlannerEventViewModel;
-  localEvents: LocalPlannerEvent[];
   mode: "create" | "edit";
   mutate: PlannerSqlMutate;
   selectedDate: Date;
@@ -692,7 +683,7 @@ const LocalEventForm = ({
     new Date(event?.end ?? defaultEndTime(selectedDate)),
   );
   const submit = () =>
-    void saveLocalEvent(mutate, localEvents, {
+    void saveLocalEvent(mutate, {
       anytime,
       description,
       end,
@@ -849,7 +840,6 @@ const mutateLocalEvents = async (
 
 const saveLocalEvent = async (
   mutate: PlannerSqlMutate,
-  localEvents: LocalPlannerEvent[],
   input: {
     anytime: boolean;
     description: string;
@@ -861,12 +851,13 @@ const saveLocalEvent = async (
     url: string;
   },
 ) => {
+  const localEvents = await loadLocalEvents();
   const localEvent: LocalPlannerEvent = {
     anytime: input.anytime,
     attendees: [],
     createdAt:
       localEvents.find((event) => event.id === input.existingId)?.createdAt ??
-      new Date().toISOString(),
+      (input.anytime ? input.start : new Date()).toISOString(),
     description: input.description.trim() || undefined,
     end: (input.anytime ? input.start : input.end).toISOString(),
     htmlLink: undefined,
@@ -892,11 +883,8 @@ const saveLocalEvent = async (
   await mutateLocalEvents(mutate, nextEvents);
 };
 
-const deleteLocalEvent = async (
-  mutate: PlannerSqlMutate,
-  localEvents: LocalPlannerEvent[],
-  eventId: string,
-) => {
+const deleteLocalEvent = async (mutate: PlannerSqlMutate, eventId: string) => {
+  const localEvents = await loadLocalEvents();
   const nextEvents = localEvents.filter((event) => event.id !== eventId);
   await mutateLocalEvents(mutate, nextEvents);
 };
